@@ -1,23 +1,26 @@
 class Product{
   int? code;
   int? quantity;
+  bool? isNew;
 
   Product({
     required this.code,
-    required this.quantity
+    required this.quantity,
+    this.isNew = false,
   });
 
 
-  Product.fromJson(Map<String,dynamic> json){
-    code = json['code'];
-    quantity = json['quantity'];
-
+  // Convert Product object to a formatted string
+  String toFormattedString() {
+    return '$code,$quantity';
   }
 
-  Map<String, dynamic> toMap(){
-    return{
-      'code' : code,
-      'quantity' : quantity,
-    };
+  // Create a Product object from a formatted string
+  factory Product.fromFormattedString(String productString) {
+    final parts = productString.split(',');
+    return Product(
+      code: int.parse(parts[0]),
+      quantity: int.parse(parts[1]),
+    );
   }
 }

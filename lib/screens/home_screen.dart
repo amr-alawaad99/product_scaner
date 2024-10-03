@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:product_scanner/shared/constants.dart';
 import 'package:product_scanner/widgets/custom_button.dart';
 import 'folder_details.dart';
 
@@ -18,6 +20,8 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Directory> _folders = [];
   final TextEditingController folderName = TextEditingController();
   String? _importedFileContent;
+  bool allProductsFileExists = false;
+  DateTime? lastModified;
 
   @override
   void initState() {
@@ -25,12 +29,28 @@ class _HomeScreenState extends State<HomeScreen> {
     _getAppDirectory();
   }
 
+
   Future<void> _getAppDirectory() async {
-    _appDir = (Platform.isAndroid
-        ? await getExternalStorageDirectory() //FOR ANDROID
-        : await getApplicationSupportDirectory())!; //FOR IOS
-    print(_appDir.path);
-    _loadFolders();
+    Directory temp = await getApplicationDocumentsDirectory();
+    if(await Directory("${temp.path}/StoreData").exists()){
+      _appDir = Directory("${temp.path}/StoreData");
+      print(_appDir.path);
+      _loadFolders();
+    } else {
+      Directory("${temp.path}/StoreData").create().then((value) {
+        _appDir = value;
+        print(_appDir.path);
+        _loadFolders();
+      },);
+    }
+    if(await File("${_appDir.path}/store_file.txt").exists()){
+      setState(() {
+        allProductsFileExists = true;
+      });
+      lastModified = await File("${_appDir.path}/store_file.txt").lastModified();
+    } else {
+      allProductsFileExists = false;
+    }
   }
 
   Future<void> _loadFolders() async {
@@ -70,7 +90,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Navigator.pop(context);
                     folderName.clear();
                   },
-                  child: const Text('إنشاء ملف المتجر'),
+                  child: const Text('إنشاء متجر جديد'),
                 ),
               ],
             ),
@@ -95,20 +115,21 @@ class _HomeScreenState extends State<HomeScreen> {
       String fileContent = await importedFile.readAsString();
 
       // Step 3: Get the app directory to save the file
-      Directory appDir = await getApplicationDocumentsDirectory(); // For Android & iOS
-      String newFilePath = '${appDir.path}/store_file.txt';
+      String newFilePath = '${_appDir.path}/store_file.txt';
 
       // Step 4: Save the file to the app directory
       File newFile = File(newFilePath);
       await newFile.writeAsString(fileContent);
+      lastModified = await File("${_appDir.path}/store_file.txt").lastModified();
 
       setState(() {
         _importedFileContent = fileContent; // Update UI with file content if needed
+        allProductsFileExists = true;
       });
 
       // Optionally show a success message
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم رفع الملف: $newFilePath')),
+        const SnackBar(content: Text('تم رفع الملف بنجاح')),
       );
     } else {
       // User canceled the file picker
@@ -118,8 +139,35 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> deleteDirectory(Directory dir) async {
+    if (await dir.exists()) {
+      try {
+        // List all the files and directories in the directory
+        List<FileSystemEntity> contents = dir.listSync();
+
+        // Iterate over all the files and directories and delete them
+        for (FileSystemEntity entity in contents) {
+          if (entity is File) {
+            await entity.delete(); // Delete the file
+          } else if (entity is Directory) {
+            await deleteDirectory(entity); // Recursively delete subdirectories
+          }
+        }
+        // Now, delete the directory itself
+        await dir.delete();
+        print('Directory deleted: ${dir.path}');
+      } catch (e) {
+        print('Error while deleting directory: $e');
+      }
+    } else {
+      print('Directory does not exist');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    print(_importedFileContent);
+print(_folders.isEmpty);
     return Scaffold(
       appBar: AppBar(title: const Text('المتاجر')),
       body: ListView.separated(
@@ -127,15 +175,20 @@ class _HomeScreenState extends State<HomeScreen> {
         separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
           final folder = _folders[index];
-          return ListTile(
+          if(_folders.isEmpty) {
+            return const Center(child: Text("قم بإنشاء ملف متجر جديد\nإضغظ على علامة +"),);
+          } else {
+            return ListTile(
             title: Text(folder.path.split('/').last),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => FolderDetailsScreen(folder: folder),
-                ),
-              );
+            onTap: () async {
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => FolderDetailsScreen(folder: folder, storeFile: File("${_appDir.path}/store_file.txt"),),
+                  ),
+                );
+
             },
             onLongPress: () {
               showDialog(
@@ -199,9 +252,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ElevatedButton(child: const Text("لا"), onPressed: () => Navigator.pop(context)),
                                       const Spacer(),
                                       ElevatedButton(
-                                        child: const Text("نعم"), onPressed: () {
+                                        child: const Text("نعم"), onPressed: () async {
+                                        await deleteDirectory(Directory(folder.path));
+
                                         setState(() {
-                                          folder.delete();
                                           Navigator.pop(context);
                                           _loadFolders();
                                         });
@@ -222,6 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           );
+          }
         },
       ),
       floatingActionButton: FloatingActionButton(
@@ -231,9 +286,35 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: Container(
         height: 80.h,
         padding: EdgeInsets.all(20.r),
-        child: CustomButton(
+        child: allProductsFileExists?
+        Container(
+          decoration: BoxDecoration(
+            color: primaryColor,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Center(child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text("اخر تعديل ${DateFormat.yMd("ar").add_jm().format(lastModified!)}"),
+                ],
+              ),
+              SizedBox(width: 20.w,),
+              IconButton(
+                onPressed: _importAndSaveFile,
+                icon: const Icon(Icons.folder, color: Colors.white,
+                ),
+              ),
+            ],
+          ),),
+        ) :
+        CustomButton(
           innerText: "تحميل ملف المنتجات",
           onPressed: _importAndSaveFile,
+          borderRadius: 0,
+          suffixIcon: const Icon(Icons.folder, color: Colors.white,),
         ),
       ),
     );
