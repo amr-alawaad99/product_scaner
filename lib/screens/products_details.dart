@@ -120,8 +120,9 @@ class _ProductsDetailsState extends State<ProductsDetails> {
           : ListView.builder(
               itemCount: fileContents.length,
               itemBuilder: (context, index) {
+                List<String> reversed = fileContents.reversed.toList();
                 return ListTile(
-                  title: Text(fileContents[index]),
+                  title: Text(reversed[index]),
                 );
               },
             ),

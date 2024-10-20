@@ -243,7 +243,7 @@ class _AddProductsState extends State<AddProducts> {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemBuilder: (context, index) {
-                  final Product product = _products[index];
+                  final Product product = _products.reversed.toList()[index];
                   return Container(
                     color: product.isNew!? Colors.redAccent : Colors.transparent,
                     child: Row(

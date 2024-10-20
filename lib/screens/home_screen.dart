@@ -170,15 +170,14 @@ class _HomeScreenState extends State<HomeScreen> {
 print(_folders.isEmpty);
     return Scaffold(
       appBar: AppBar(title: const Text('المتاجر')),
-      body: ListView.separated(
+      body:  _folders.isEmpty? const Center(child: Text("قم بإنشاء ملف متجر جديد\nإضغظ على علامة +", textAlign: TextAlign.center,),)
+        : ListView.separated(
         itemCount: _folders.length,
         separatorBuilder: (context, index) => const Divider(),
         itemBuilder: (context, index) {
           final folder = _folders[index];
-          if(_folders.isEmpty) {
-            return const Center(child: Text("قم بإنشاء ملف متجر جديد\nإضغظ على علامة +"),);
-          } else {
-            return ListTile(
+
+          return ListTile(
             title: Text(folder.path.split('/').last),
             onTap: () async {
 
@@ -276,7 +275,7 @@ print(_folders.isEmpty);
               );
             },
           );
-          }
+
         },
       ),
       floatingActionButton: FloatingActionButton(
