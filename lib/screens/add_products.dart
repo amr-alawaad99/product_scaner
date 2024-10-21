@@ -3,8 +3,8 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:product_scanner/widgets/custom_button.dart';
-import 'package:qr_code_scanner/qr_code_scanner.dart';
 import '../models/product.dart';
 
 class AddProducts extends StatefulWidget {
@@ -22,16 +22,20 @@ class _AddProductsState extends State<AddProducts> {
   final FocusNode _productNameFocusNode = FocusNode();  // Define a FocusNode for the product name field
   final List<Product> _products = [];
   final GlobalKey qrKey = GlobalKey(debugLabel: 'QR');
-  QRViewController? scannerController;
+  // QRViewController? scannerController;
+  MobileScannerController? scannerController;
   AudioPlayer audioPlayer = AudioPlayer();
   bool newItem = false;
   File storeFile = File("/data/data/com.example.product_scanner/app_flutter/StoreData/store_file.txt");
   List<String> storeFileContent = [];
   String? itemDescription;
+  bool isScanning = false; // A flag to prevent continuous scanning
+
 
   @override
   void initState() {
     super.initState();
+    scannerController?.start();
     getMainStoreFileProductDetails();
   }
 
@@ -45,56 +49,43 @@ class _AddProductsState extends State<AddProducts> {
   }
 
 
-  void _onQRViewCreated(QRViewController controller) {
-    scannerController = controller;
-    bool isScanning = false; // A flag to prevent continuous scanning
-    controller.scannedDataStream.listen((scanData) async {
-      newItem = false;
-      if (!isScanning) {
-        int code = int.parse(scanData.code!);
-        setState(() {
-          if(_products.where((element) => element.code == code,).isNotEmpty){
-            int t = _products.where((element) => element.code == code,).first.quantity!;
-            _products.where((element) => element.code == code,).first.quantity = t+1;
-          } else {
-            _products.add(Product(code: int.parse(scanData.code!), quantity: 1, isNew: newItem));
-            print(_products.last.code);
+  Future<void> _onDetect(BarcodeCapture barcode) async {
+    if (isScanning) return; // Return early if already scanning
+    String? codeValue = barcode.barcodes.last.rawValue;
+    if(codeValue != null){
+      int code = int.parse(codeValue);
+      setState(() {
+        if(_products.where((element) => element.code == code,).isNotEmpty){
+          int t = _products.where((element) => element.code == code,).first.quantity!;
+          _products.where((element) => element.code == code,).first.quantity = t+1;
+        } else {
+          _products.add(Product(code: code, quantity: 1, isNew: newItem));
+          print(_products.last.code);
+        }
+        for(String line in storeFileContent){
+          if(line.split(",").first == codeValue){
+            newItem = false;
+            itemDescription = line;
+            return;
           }
-          for(String line in storeFileContent){
-            if(line.split(",").first == scanData.code!){
-              newItem = false;
-              itemDescription = line;
-              return;
-            }
-            newItem = true;
-          }
-          _products.last.isNew = newItem;
-        });
+          newItem = true;
+        }
+        _products.last.isNew = newItem;
+      });
 
-        isScanning = true; // Disable further scans temporarily
+      isScanning = true; // Disable further scans temporarily
 
-        // Play the scanning sound
-        await audioPlayer.play(AssetSource('scan_sound.mp3'));
+      // Play the scanning sound
+      await audioPlayer.play(AssetSource('scan_sound.mp3'));
 
-        // Wait for 1 second before allowing another scan
-        await Future.delayed(const Duration(seconds: 1));
+      // Wait for 1 second before allowing another scan
+      await Future.delayed(const Duration(seconds: 1));
 
-        isScanning = false; // Re-enable scanning after the delay
-      }
-    });
-  }
-
-  @override
-  void reassemble() {
-    super.reassemble();
-    if (scannerController != null) {
-      if (Theme.of(context).platform == TargetPlatform.android) {
-        scannerController!.pauseCamera();
-      } else if (Theme.of(context).platform == TargetPlatform.iOS) {
-        scannerController!.resumeCamera();
-      }
+      isScanning = false; // Re-enable scanning after the delay
     }
-  }
+    }
+
+
 
   // Read products from the file
   Future<List<Product>> readProductsFromFile() async {
@@ -157,6 +148,7 @@ class _AddProductsState extends State<AddProducts> {
     _productCode.dispose();
     _productQuantity.dispose();
     _productNameFocusNode.dispose();
+    scannerController?.stop();
     scannerController?.dispose();
     super.dispose();
   }
@@ -189,12 +181,20 @@ class _AddProductsState extends State<AddProducts> {
             SizedBox(
               width: double.infinity,
               height: 100.h,
-              child: QRView(
-                key: qrKey,
-                onQRViewCreated: _onQRViewCreated,
-                overlay: QrScannerOverlayShape(borderColor: Colors.red),
+              child: MobileScanner(
+                controller: scannerController,
+                onDetect: _onDetect,
               ),
             ),
+            // SizedBox(
+            //   width: double.infinity,
+            //   height: 100.h,
+            //   child: QRView(
+            //     key: qrKey,
+            //     onQRViewCreated: _onQRViewCreated,
+            //     overlay: QrScannerOverlayShape(borderColor: Colors.red),
+            //   ),
+            // ),
             /// Add product
             Row(
               children: [
