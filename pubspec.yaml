@@ -42,7 +42,8 @@ dependencies:
   path_provider: ^2.1.4
   permission_handler: ^11.3.1
   file_picker: ^8.1.2
-  qr_code_scanner: ^1.0.1
+  qr_code_scanner:
+    path: plugins/qr_code_scanner-master
   audioplayers: ^6.1.0
   intl: ^0.19.0
   rename: ^3.0.2
