@@ -29,7 +29,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _getAppDirectory();
   }
 
-
   Future<void> _getAppDirectory() async {
     Directory temp = await getApplicationDocumentsDirectory();
     if(await Directory("${temp.path}/StoreData").exists()){
